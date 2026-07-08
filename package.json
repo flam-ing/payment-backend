@@ -10,6 +10,7 @@
     "build:frontend": "npm --prefix frontend run build",
     "dev:backend": "bash -lc 'set -a; [ -f .env.local ] && source ./.env.local; set +a; npx vercel dev --listen 3000'",
     "deploy:backend": "npx vercel --prod --yes",
+    "build": "echo 'No-op build for Hono serverless backend'",
     "verify": "npm --prefix frontend run build"
   }
 }
