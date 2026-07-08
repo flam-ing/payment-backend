@@ -51,6 +51,8 @@ export const adminHtml = `<!DOCTYPE html>
   .btn:hover { background: rgba(255,255,255,0.12); }
   .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   .btn-primary:hover { background: var(--accent-hover); }
+  .btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .btn-danger:hover { background: #dc2626; }
 
   .container { max-width: 1280px; margin: 24px auto; padding: 0 24px; }
   
@@ -105,7 +107,7 @@ export const adminHtml = `<!DOCTYPE html>
     border-radius: 12px; overflow: hidden;
   }
   .table-header-bar {
-    padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 20px; display: flex; justify-space-between; align-items: center;
     border-bottom: 1px solid var(--card-border);
   }
   .table-title { font-size: 16px; font-weight: 700; }
@@ -138,13 +140,23 @@ export const adminHtml = `<!DOCTYPE html>
   }
 </style>
 </head>
-<!-- Password Authentication Modal (Removed Server-Side Guard bypass) -->
-<div id="auth-modal" class="auth-overlay" style="display:none;"></div>
+<body>
+
+<!-- Password Authentication Modal -->
+<div id="auth-modal" class="auth-overlay">
+  <div class="auth-box">
+    <div style="font-size: 36px; margin-bottom: 12px;">🔐</div>
+    <h2>Turso DB Admin Login</h2>
+    <p>Turso 데이터베이스 대장 관리를 위한 암호를 입력하세요.</p>
+    <input type="password" id="admin-pass-input" class="input-field" placeholder="Admin Password" onkeyup="if(event.key==='Enter') login()">
+    <button class="btn btn-primary" style="width: 100%; padding: 12px;" onclick="login()">로그인</button>
+  </div>
+</div>
 
 <!-- Header Navbar -->
 <nav class="navbar">
   <div class="brand">
-    <img src="https://payment.ai-ing.org/logo.png" alt="AI-ing Logo" onerror="this.src='https://ai-ing.org/logo.png'">
+    <img src="logo.png" alt="AI-ing Logo">
     <div>에이아잉 <span>Turso DB Admin</span></div>
   </div>
   <div class="nav-actions">
@@ -152,6 +164,7 @@ export const adminHtml = `<!DOCTYPE html>
       <span style="width: 8px; height: 8px; background: var(--success); border-radius: 50%;"></span> Turso DB Live
     </span>
     <button class="btn" onclick="fetchDashboard()">🔄 새로고침</button>
+    <button class="btn" onclick="logout()">로그아웃</button>
   </div>
 </nav>
 
@@ -171,7 +184,7 @@ export const adminHtml = `<!DOCTYPE html>
     </div>
     <div class="kpi-card">
       <div class="kpi-title">백엔드 작동 모드</div>
-      <div class="kpi-value" style="font-size: 20px; color: var(--accent);" id="kpi-mode">PortOne & PayPal</div>
+      <div class="kpi-value" style="font-size: 20px; color: var(--accent);" id="kpi-mode">PayPal Live</div>
       <div class="kpi-sub" style="color: var(--text-sub);" id="kpi-backend-url">Vercel Backend</div>
     </div>
   </div>
@@ -221,29 +234,39 @@ export const adminHtml = `<!DOCTYPE html>
 </div>
 
 <script>
-  let adminPassword = '';
-  const backendBaseUrl = window.location.origin;
+  let adminPassword = localStorage.getItem('turso_admin_pass') || '';
+  const backendBaseUrl = 'https://payment.ai-ing.org';
   let currentTab = 'dashboard';
   let currentPage = 1;
   let rawData = [];
 
   function checkAuth() {
-    // 서버사이드 게이트웨이 인증을 이미 통과했으므로 모달 생략 및 즉시 쿼리
+    if (adminPassword) {
+      document.getElementById('auth-modal').style.display = 'none';
+      fetchDashboard();
+    } else {
+      document.getElementById('auth-modal').style.display = 'flex';
+    }
+  }
+
+  function login() {
+    const input = document.getElementById('admin-pass-input').value.trim();
+    if (!input) return alert('암호를 입력해 주세요.');
+    adminPassword = input;
+    localStorage.setItem('turso_admin_pass', input);
     document.getElementById('auth-modal').style.display = 'none';
     fetchDashboard();
   }
 
-  function login() {
-    fetchDashboard();
-  }
-
   function logout() {
-    window.location.href = "/";
+    localStorage.removeItem('turso_admin_pass');
+    adminPassword = '';
+    document.getElementById('auth-modal').style.display = 'flex';
   }
 
   async function fetchDashboard() {
     try {
-      const res = await fetch(backendBaseUrl + "/api/v1/admin/dashboard", {
+      const res = await fetch(\`\${backendBaseUrl}/api/v1/admin/dashboard\`, {
         headers: { 'x-admin-password': adminPassword }
       });
       if (res.status === 401) {
@@ -256,7 +279,6 @@ export const adminHtml = `<!DOCTYPE html>
         document.getElementById('kpi-orders').innerText = data.totals.orders;
         document.getElementById('kpi-attempts').innerText = data.totals.paymentAttempts;
         document.getElementById('kpi-mode').innerText = data.mode || 'Active';
-        document.getElementById('kpi-backend-url').innerText = backendBaseUrl;
         
         if (currentTab === 'dashboard') {
           renderDashboardTable(data.orders);
@@ -269,7 +291,7 @@ export const adminHtml = `<!DOCTYPE html>
 
   async function fetchTableData(tableName, page = 1) {
     try {
-      const res = await fetch(backendBaseUrl + "/api/v1/admin/tables/" + tableName + "/rows?page=" + page + "&pageSize=20", {
+      const res = await fetch(\`\${backendBaseUrl}/api/v1/admin/tables/\${tableName}/rows?page=\${page}&pageSize=20\`, {
         headers: { 'x-admin-password': adminPassword }
       });
       const data = await res.json();
@@ -287,22 +309,39 @@ export const adminHtml = `<!DOCTYPE html>
     const tbody = document.getElementById('table-body');
     const thead = document.getElementById('table-head');
     
-    thead.innerHTML = "<tr><th>Order ID</th><th>상품명</th><th>금액</th><th>통화</th><th>상태</th><th>생성일시</th></tr>";
+    thead.innerHTML = \`
+      <tr>
+        <th>Order ID</th>
+        <th>상품명</th>
+        <th>금액</th>
+        <th>통화</th>
+        <th>상태</th>
+        <th>생성일시</th>
+        <th>작업 (Actions)</th>
+      </tr>
+    \`;
 
     if (!orders || orders.length === 0) {
-      tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; padding:30px;'>기록된 주문이 없습니다.</td></tr>";
+      tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding:30px;">기록된 주문이 없습니다.</td></tr>\`;
       return;
     }
 
     tbody.innerHTML = orders.map(o => {
-      return "<tr>" +
-        "<td style='font-family:monospace; color:var(--accent);'>" + o.id + "</td>" +
-        "<td>" + (o.itemName || '기본 주문') + "</td>" +
-        "<td style='font-weight:700;'>" + o.amount + "</td>" +
-        "<td>" + o.currency + "</td>" +
-        "<td><span class='badge " + getStatusBadge(o.status) + "'>" + o.status + "</span></td>" +
-        "<td style='color:var(--text-sub);'>" + new Date(o.createdAt).toLocaleString() + "</td>" +
-        "</tr>";
+      const canRefund = (o.status === 'PAID');
+      const actionHtml = canRefund 
+        ? \`<button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="triggerRefund('\${o.activePaymentAttemptId || ''}', '\${o.id}')">💸 환불</button>\`
+        : \`<span style="font-size:11px; color:var(--text-sub);">불가</span>\`;
+      return \`
+        <tr>
+          <td style="font-family:monospace; color:var(--accent);">\${o.id}</td>
+          <td>\${o.itemName || '기본 주문'}</td>
+          <td style="font-weight:700;">\${o.amount}</td>
+          <td>\${o.currency}</td>
+          <td><span class="badge \${getStatusBadge(o.status)}">\${o.status}</span></td>
+          <td style="color:var(--text-sub);">\${new Date(o.createdAt).toLocaleString()}</td>
+          <td>\${actionHtml}</td>
+        </tr>
+      \`;
     }).join('');
   }
 
@@ -311,25 +350,44 @@ export const adminHtml = `<!DOCTYPE html>
     const thead = document.getElementById('table-head');
     
     if (!rows || rows.length === 0) {
-      tbody.innerHTML = "<tr><td colspan='6' style='text-align:center; padding:30px;'>데이터가 없습니다.</td></tr>";
+      tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding:30px;">데이터가 없습니다.</td></tr>\`;
       return;
     }
 
+    const isOrder = (currentTab === 'Order');
+    const isPaymentAttempt = (currentTab === 'PaymentAttempt');
+    const hasActions = isOrder || isPaymentAttempt;
+
     const keys = Object.keys(rows[0]).slice(0, 6);
-    thead.innerHTML = "<tr>" + keys.map(k => "<th>" + k + "</th>").join('') + "</tr>";
+    thead.innerHTML = \`<tr>\${keys.map(k => \`<th>\${k}</th>\`).join('')}\${hasActions ? '<th>작업 (Actions)</th>' : ''}</tr>\`;
 
     tbody.innerHTML = rows.map(r => {
-      return "<tr>" +
-        keys.map(k => {
-          let val = r[k];
-          if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
-          if (k === 'status') return "<td><span class='badge " + getStatusBadge(val) + "'>" + val + "</span></td>";
-          return "<td>" + (val ?? '-') + "</td>";
-        }).join('') +
-        "</tr>";
+      const cellsHtml = keys.map(k => {
+        let val = r[k];
+        if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
+        if (k === 'status') return \`<td><span class="badge \${getStatusBadge(val)}">\${val}</span></td>\`;
+        return \`<td>\${val ?? '-'}</td>\`;
+      }).join('');
+
+      let actionHtml = '';
+      if (hasActions) {
+        if (isOrder) {
+          const canRefund = (r.status === 'PAID');
+          actionHtml = canRefund
+            ? \`<td><button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="triggerRefund('\${r.active_payment_attempt_id || ''}', '\${r.id}')">💸 환불</button></td>\`
+            : \`<td><span style="font-size:11px; color:var(--text-sub);">불가</span></td>\`;
+        } else if (isPaymentAttempt) {
+          const canRefund = (r.status === 'CAPTURED' || r.status === 'APPROVED');
+          actionHtml = canRefund
+            ? \`<td><button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="triggerRefund('\${r.id}', '\${r.order_id}')">💸 환불</button></td>\`
+            : \`<td><span style="font-size:11px; color:var(--text-sub);">불가</span></td>\`;
+        }
+      }
+
+      return \`<tr>\${cellsHtml}\${actionHtml}</tr>\`;
     }).join('');
 
-    document.getElementById('page-info').innerText = "Page " + page + " of " + (totalPages || 1);
+    document.getElementById('page-info').innerText = \`Page \${page} of \${totalPages || 1}\`;
   }
 
   function getStatusBadge(status) {
@@ -347,7 +405,7 @@ export const adminHtml = `<!DOCTYPE html>
     if (tabName === 'dashboard') {
       fetchDashboard();
     } else {
-      document.getElementById('current-table-title').innerText = tabName + " 테이블 데이터";
+      document.getElementById('current-table-title').innerText = \`\${tabName} 테이블 데이터\`;
       fetchTableData(tabName, 1);
     }
   }
@@ -361,7 +419,40 @@ export const adminHtml = `<!DOCTYPE html>
     });
   }
 
+  async function triggerRefund(attemptId, orderId) {
+    if (!attemptId) {
+      alert('환불 처리를 위한 결제 시도 ID(Attempt ID)가 존재하지 않습니다.');
+      return;
+    }
+    if (!confirm(\`정말로 이 주문(\${orderId})의 결제를 환불(취소)하시겠습니까?\\n이 작업은 되돌릴 수 없으며 PG사/PayPal API로 환불 요청이 즉시 전송됩니다.\`)) {
+      return;
+    }
+    
+    try {
+      const res = await fetch(\`\${backendBaseUrl}/api/v1/admin/payments/\${attemptId}/refund\`, {
+        method: 'POST',
+        headers: {
+          'x-admin-password': adminPassword,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await res.json();
+      if (data.ok) {
+        alert('환불이 성공적으로 처리되었습니다.');
+        fetchDashboard();
+        if (currentTab !== 'dashboard') {
+          fetchTableData(currentTab, currentPage);
+        }
+      } else {
+        alert(\`환불 실패: \${data.message}\`);
+      }
+    } catch (e) {
+      alert(\`오류가 발생했습니다: \${e.message}\`);
+    }
+  }
+
   checkAuth();
 </script>
 </body>
-</html>`;
+</html>
+`;

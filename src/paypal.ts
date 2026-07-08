@@ -182,6 +182,16 @@ export async function capturePayPalOrder(credentials: PayPalCredentials, provide
   });
 }
 
+export async function refundPayPalCapture(credentials: PayPalCredentials, captureId: string, requestId: string) {
+  return paypalRequest<any>(credentials, `/v2/payments/captures/${captureId}/refund`, {
+    method: "POST",
+    headers: {
+      "PayPal-Request-Id": requestId
+    },
+    body: JSON.stringify({})
+  });
+}
+
 export async function verifyPayPalWebhook(input: {
   credentials: PayPalCredentials;
   webhookId: string;

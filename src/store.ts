@@ -779,6 +779,15 @@ export async function getSettlementByAttemptId(attemptId: string) {
     : null;
 }
 
+export async function updateSettlementStatus(attemptId: string, status: SettlementStatus) {
+  await ensureSchema();
+  const client = getClient();
+  await client.execute({
+    sql: "update settlement_records set status = ?, updated_at = ? where attempt_id = ?",
+    args: [status, new Date().toISOString(), attemptId]
+  });
+}
+
 export async function insertLedgerEntry(entry: LedgerEntryInput) {
   await ensureSchema();
   const client = getClient();
