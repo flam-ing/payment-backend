@@ -29,8 +29,7 @@ import {
   updateOrderStatus,
   updatePaymentAttempt,
   updateSettlementStatus,
-  getPaymentAttemptById,
-  getSettlementByAttemptId
+  getMonthlyKakaopayTotal
 } from "./store";
 import {
   capturePayPalOrder,
@@ -860,6 +859,34 @@ app.post("/api/v1/orders/:orderId/payment-attempts/portone", async (c) => {
   });
 
   return c.json({ ok: true, attemptId: attempt.id });
+});
+
+app.get("/api/v1/payments/status/kakaopay", async (c) => {
+  try {
+    const total = await getMonthlyKakaopayTotal();
+    const LIMIT = 500000; // 500,000 KRW monthly limit
+    const remainingLimit = Math.max(LIMIT - total.net, 0);
+    
+    const targetAmountStr = c.req.query("amount");
+    const targetAmount = targetAmountStr ? parseInt(targetAmountStr, 10) : 0;
+    
+    const isAvailable = targetAmount > 0 
+      ? remainingLimit >= targetAmount 
+      : remainingLimit > 0;
+      
+    return c.json({
+      ok: true,
+      limit: LIMIT,
+      captured: total.captured,
+      refunded: total.refunded,
+      net: total.net,
+      remainingLimit,
+      isAvailable
+    });
+  } catch (error: any) {
+    console.error("Failed to retrieve Kakao Pay monthly total:", error);
+    return c.json({ ok: false, message: `Failed to retrieve status: ${error.message}` }, 500);
+  }
 });
 
 app.get("/api/v1/orders/:orderId", async (c) => {

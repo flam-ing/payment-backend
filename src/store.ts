@@ -952,3 +952,37 @@ export async function updateAdminTableRow(tableName: AdminTableName, rowId: stri
   const row = updated.rows[0] as Record<string, unknown> | undefined;
   return row ? mapGenericRow(row, definition.columns) : null;
 }
+
+export async function getMonthlyKakaopayTotal(): Promise<{ captured: number; refunded: number; net: number }> {
+  await ensureSchema();
+  const client = getClient();
+  
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  
+  const result = await client.execute({
+    sql: `
+      select 
+        coalesce(sum(case when type = 'payment_captured' then amount else 0 end), 0) as captured,
+        coalesce(sum(case when type = 'payment_refunded' then amount else 0 end), 0) as refunded
+      from ledger_entries
+      where (
+        (type = 'payment_captured' and direction = 'credit') or
+        (type = 'payment_refunded' and direction = 'debit')
+      )
+      and json_extract(metadata, '$.provider') = 'portone'
+      and lower(json_extract(metadata, '$.method')) like 'kakaopay%'
+      and created_at >= ?
+    `,
+    args: [startOfMonth]
+  });
+
+  const captured = Number(result.rows[0]?.captured ?? 0);
+  const refunded = Number(result.rows[0]?.refunded ?? 0);
+  
+  return {
+    captured,
+    refunded,
+    net: Math.max(captured - refunded, 0)
+  };
+}
