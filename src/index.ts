@@ -29,7 +29,8 @@ import {
   updateOrderStatus,
   updatePaymentAttempt,
   updateSettlementStatus,
-  getMonthlyKakaopayTotal
+  getMonthlyKakaopayTotal,
+  getMonthlyCardTotal
 } from "./store";
 import {
   capturePayPalOrder,
@@ -112,14 +113,23 @@ function currentBackendBaseUrl() {
 }
 
 function allowedOrigins() {
-  const configuredOrigins = process.env.CORS_ALLOWED_ORIGINS?.trim();
-  return (
-    configuredOrigins ??
-    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,https://pay-to-minwoo-web.netlify.app,https://pay-to-minwoo.netlify.app,https://ai-ing.org,https://www.ai-ing.org"
-  )
+  // Always allow official ai-ing frontends even if CORS_ALLOWED_ORIGINS is outdated.
+  const defaults = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:4173",
+    "https://pay-to-minwoo-web.netlify.app",
+    "https://pay-to-minwoo.netlify.app",
+    "https://ai-ing.org",
+    "https://www.ai-ing.org",
+    "https://ai-ing-6lf.pages.dev"
+  ];
+  const configured = (process.env.CORS_ALLOWED_ORIGINS ?? "")
+    .replace(/\r?\n/g, ",")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+  return [...new Set([...defaults, ...configured])];
 }
 
 function decimalPlaces(currency: string) {
@@ -864,28 +874,83 @@ app.post("/api/v1/orders/:orderId/payment-attempts/portone", async (c) => {
 app.get("/api/v1/payments/status/kakaopay", async (c) => {
   try {
     const total = await getMonthlyKakaopayTotal();
-    const LIMIT = 500000; // 500,000 KRW monthly limit
+    // PortOne/Kakao live channel monthly cap (KRW). Override with KAKAOPAY_MONTHLY_LIMIT env if needed.
+    const LIMIT = Math.max(
+      0,
+      Number(process.env.KAKAOPAY_MONTHLY_LIMIT ?? "500000") || 500000
+    );
     const remainingLimit = Math.max(LIMIT - total.net, 0);
-    
+
     const targetAmountStr = c.req.query("amount");
     const targetAmount = targetAmountStr ? parseInt(targetAmountStr, 10) : 0;
-    
-    const isAvailable = targetAmount > 0 
-      ? remainingLimit >= targetAmount 
-      : remainingLimit > 0;
-      
+
+    const isAvailable =
+      targetAmount > 0 ? remainingLimit >= targetAmount : remainingLimit > 0;
+
     return c.json({
       ok: true,
+      provider: "kakaopay",
       limit: LIMIT,
       captured: total.captured,
       refunded: total.refunded,
       net: total.net,
       remainingLimit,
-      isAvailable
+      isAvailable,
+      message: isAvailable
+        ? targetAmount > 0
+          ? `잔여 한도 ${remainingLimit.toLocaleString("ko-KR")}원 — 결제 가능`
+          : `잔여 한도 ${remainingLimit.toLocaleString("ko-KR")}원`
+        : targetAmount > 0
+          ? `잔여 한도 ${remainingLimit.toLocaleString("ko-KR")}원 — 요청 금액 불가`
+          : "이번 달 카카오페이 한도가 소진되었습니다."
     });
   } catch (error: any) {
     console.error("Failed to retrieve Kakao Pay monthly total:", error);
-    return c.json({ ok: false, message: `Failed to retrieve status: ${error.message}` }, 500);
+    return c.json(
+      { ok: false, message: `Failed to retrieve status: ${error.message}` },
+      500
+    );
+  }
+});
+
+app.get("/api/v1/payments/status/card", async (c) => {
+  try {
+    const total = await getMonthlyCardTotal();
+    const LIMIT = Math.max(
+      0,
+      Number(process.env.CARD_MONTHLY_LIMIT ?? "3000000") || 3000000
+    );
+    const remainingLimit = Math.max(LIMIT - total.net, 0);
+
+    const targetAmountStr = c.req.query("amount");
+    const targetAmount = targetAmountStr ? parseInt(targetAmountStr, 10) : 0;
+
+    const isAvailable =
+      targetAmount > 0 ? remainingLimit >= targetAmount : remainingLimit > 0;
+
+    return c.json({
+      ok: true,
+      provider: "card",
+      limit: LIMIT,
+      captured: total.captured,
+      refunded: total.refunded,
+      net: total.net,
+      remainingLimit,
+      isAvailable,
+      message: isAvailable
+        ? targetAmount > 0
+          ? `잔여 한도 ${remainingLimit.toLocaleString("ko-KR")}원 — 결제 가능`
+          : `잔여 한도 ${remainingLimit.toLocaleString("ko-KR")}원`
+        : targetAmount > 0
+          ? `잔여 한도 ${remainingLimit.toLocaleString("ko-KR")}원 — 요청 금액 불가`
+          : "이번 달 신용카드 정산 한도(300만원)가 소진되었습니다."
+    });
+  } catch (error: any) {
+    console.error("Failed to retrieve Card monthly total:", error);
+    return c.json(
+      { ok: false, message: `Failed to retrieve status: ${error.message}` },
+      500
+    );
   }
 });
 
