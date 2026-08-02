@@ -17,6 +17,7 @@ export default function App() {
         <Route path="/" element={<HomePage apiBaseUrl={apiBaseUrl} copy={selectedCopy} locale={locale} />} />
         <Route path="/success" element={<SuccessPage copy={selectedCopy} />} />
         <Route path="/cancel" element={<CancelPage copy={selectedCopy} />} />
+        <Route path="/dashboard" element={<AdminPage apiBaseUrl={apiBaseUrl} />} />
         <Route path="/admin" element={<AdminPage apiBaseUrl={apiBaseUrl} />} />
       </Routes>
     </div>

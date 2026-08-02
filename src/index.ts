@@ -419,8 +419,9 @@ app.use(
   })
 );
 
-// --- Admin Secure HTML Views ---
-app.get("/admin", async (c) => {
+// --- Internal dashboard (API 호스트 내부용, 공개 마케팅 사이트와 분리) ---
+// 경로: /dashboard  (레거시 /admin 은 리다이렉트)
+async function serveDashboard(c: any) {
   const cookieHeader = c.req.header("Cookie") || "";
   const sessionCookieName = "payment-auth";
   const expectedToken = "verified";
@@ -430,10 +431,33 @@ app.get("/admin", async (c) => {
     return c.html(renderAdminGatePage(""));
   }
 
-  // Serve the imported admin.html dashboard content
-  return c.html(adminHtml);
+  return c.html(adminHtml, 200, {
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "X-Robots-Tag": "noindex, nofollow, noarchive"
+  });
+}
+
+app.get("/dashboard", serveDashboard);
+app.get("/admin", (c) => c.redirect("/dashboard", 301));
+app.get("/admin.html", (c) => c.redirect("/dashboard", 301));
+
+app.post("/dashboard/login", async (c) => {
+  const body = await c.req.parseBody();
+  const password = body.password;
+  const CORRECT_PASSWORD = currentAdminPassword();
+
+  if (password === CORRECT_PASSWORD) {
+    c.header(
+      "Set-Cookie",
+      `payment-auth=verified; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`
+    );
+    return c.redirect("/dashboard");
+  } else {
+    return c.html(renderAdminGatePage("비밀번호가 올바르지 않습니다."));
+  }
 });
 
+// 레거시 로그인 엔드포인트 유지 → 대시보드로
 app.post("/admin/login", async (c) => {
   const body = await c.req.parseBody();
   const password = body.password;
@@ -444,7 +468,7 @@ app.post("/admin/login", async (c) => {
       "Set-Cookie",
       `payment-auth=verified; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`
     );
-    return c.redirect("/admin");
+    return c.redirect("/dashboard");
   } else {
     return c.html(renderAdminGatePage("비밀번호가 올바르지 않습니다."));
   }
@@ -460,7 +484,8 @@ function renderAdminGatePage(errorMessage: string) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>에이아잉 결제 어드민 - 로그인</title>
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <title>결제 대시보드 로그인 | payment.ai-ing.org</title>
   
   <!-- Fonts & Icons -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -697,7 +722,7 @@ function renderAdminGatePage(errorMessage: string) {
       
       ${errorHtml}
       
-      <form action="/admin/login" method="POST">
+      <form action="/dashboard/login" method="POST">
         <div class="input-group">
           <i class="fa-solid fa-key"></i>
           <input type="password" name="password" placeholder="비밀번호 입력" required autofocus>

@@ -10,21 +10,27 @@ export async function onRequest(context) {
   // Check if session cookie matches
   const isAuthenticated = cookieHeader.includes(`${sessionCookieName}=${expectedToken}`);
   
-  // 1. Map virtual /admin folder path to /admin.html file internally
-  const isAdminRoute = url.pathname === "/admin" || url.pathname === "/admin.html";
+  // 1. Dashboard routes (레거시 /admin 포함)
+  const isDashboardRoute =
+    url.pathname === "/dashboard" ||
+    url.pathname === "/admin" ||
+    url.pathname === "/admin.html";
   
-  // 2. Handle admin login POST request
-  if (request.method === "POST" && url.pathname === "/admin/login") {
+  // 2. Handle dashboard/admin login POST
+  if (
+    request.method === "POST" &&
+    (url.pathname === "/dashboard/login" || url.pathname === "/admin/login")
+  ) {
     try {
       const formData = await request.formData();
       const password = formData.get("password");
-      const to = url.searchParams.get("to") || "/admin";
+      const to = url.searchParams.get("to") || "/dashboard";
       
       if (password === CORRECT_PASSWORD) {
         return new Response(null, {
           status: 302,
           headers: {
-            "Location": to,
+            "Location": to.startsWith("/admin") ? "/dashboard" : to,
             "Set-Cookie": `${sessionCookieName}=${expectedToken}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`, // 30 days
           },
         });
@@ -35,24 +41,23 @@ export async function onRequest(context) {
       return new Response("Invalid form submission", { status: 400 });
     }
   }
+
+  // 레거시 /admin → /dashboard
+  if (url.pathname === "/admin" || url.pathname === "/admin.html") {
+    return Response.redirect(new URL("/dashboard", url.origin).toString(), 301);
+  }
   
-  // 3. Protect /admin and /admin.html
-  if (isAdminRoute) {
+  // 3. Protect /dashboard
+  if (isDashboardRoute && url.pathname === "/dashboard") {
     if (!isAuthenticated) {
       return renderLoginPage("", url.pathname + url.search);
-    }
-    
-    // If authenticated, /admin serves the admin.html file contents
-    if (url.pathname === "/admin") {
-      url.pathname = "/admin.html";
-      return context.next(new Request(url.toString(), request));
     }
   }
   
   return context.next();
 }
 
-function renderLoginPage(errorMessage = "", redirectUrl = "/admin") {
+function renderLoginPage(errorMessage = "", redirectUrl = "/dashboard") {
   const errorHtml = errorMessage 
     ? `<div class="error-msg"><i class="fa-solid fa-triangle-exclamation"></i> ${errorMessage}</div>` 
     : "";
@@ -299,7 +304,7 @@ function renderLoginPage(errorMessage = "", redirectUrl = "/admin") {
       
       ${errorHtml}
       
-      <form action="/admin/login?to=${encodeURIComponent(redirectUrl)}" method="POST">
+      <form action="/dashboard/login?to=${encodeURIComponent(redirectUrl)}" method="POST">
         <div class="input-group">
           <i class="fa-solid fa-key"></i>
           <input type="password" name="password" placeholder="비밀번호 입력" required autofocus>

@@ -3,8 +3,12 @@ export const adminHtml = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Turso DB Admin Dashboard | 에이아잉 (AI-ing)</title>
-<link rel="icon" type="image/png" href="favicon-96x96.png">
+<!-- 내부 결제 모니터링 — 검색엔진/AEO·GEO 수집 대상 아님 -->
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+<meta name="googlebot" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="format-detection" content="telephone=no">
+<title>결제 대시보드 | payment.ai-ing.org</title>
 <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
   :root {
@@ -235,7 +239,8 @@ export const adminHtml = `<!DOCTYPE html>
 
 <script>
   let adminPassword = localStorage.getItem('turso_admin_pass') || '';
-  const backendBaseUrl = 'https://payment.ai-ing.org';
+  // 같은 호스트(payment.ai-ing.org) API — 공개 마케팅 도메인과 분리
+  const backendBaseUrl = '';
   let currentTab = 'dashboard';
   let currentPage = 1;
   let rawData = [];
