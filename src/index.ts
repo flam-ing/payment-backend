@@ -1,13 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { Hono } from "hono";
-import { adminHtml } from "./admin_html";
 import { cors } from "hono/cors";
 import {
-  type AdminTableName,
   type OrderStatus,
   type PaymentAttemptRecord,
-  countOrders,
-  countPaymentAttempts,
   findIdempotencyRecord,
   getOrderById,
   getOrderByIdempotencyKey,
@@ -21,11 +17,6 @@ import {
   insertPaymentAttempt,
   insertProviderEvent,
   insertSettlementRecord,
-  listAdminTableRows,
-  listAdminTables,
-  listRecentOrders,
-  listRecentPaymentAttempts,
-  updateAdminTableRow,
   updateOrderStatus,
   updatePaymentAttempt,
   updateSettlementStatus,
@@ -39,8 +30,7 @@ import {
   getPayPalWebhookHeaders,
   getPrimaryCapture,
   parseProviderAmount,
-  verifyPayPalWebhook,
-  refundPayPalCapture
+  verifyPayPalWebhook
 } from "./paypal";
 
 type Locale = "ko" | "en";
@@ -122,17 +112,14 @@ function makeId(prefix: string) {
   return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
 }
 
-function currentAdminPassword() {
-  return process.env.ADMIN_PASSWORD?.trim() || "3633";
-}
-
 function currentFrontendBaseUrl() {
   const configured = process.env.FRONTEND_BASE_URL?.trim();
   if (configured) {
     return configured.replace(/\/$/, "");
   }
 
-  return process.env.VERCEL ? "https://pay-to-minwoo-web.netlify.app" : "http://localhost:5173";
+  // 결제 UI는 ai-ing.org 쪽. 이 호스트는 API only.
+  return process.env.VERCEL ? "https://ai-ing.org" : "http://localhost:5173";
 }
 
 function currentBackendBaseUrl() {
@@ -141,17 +128,15 @@ function currentBackendBaseUrl() {
     return configured.replace(/\/$/, "");
   }
 
-  return process.env.VERCEL ? "https://pay-to-minwoo.vercel.app" : "http://localhost:3000";
+  return process.env.VERCEL ? "https://payment.ai-ing.org" : "http://localhost:3000";
 }
 
+/** 브라우저 결제 호출 허용 origin — ai-ing.org 계열만 (공개 AEO/GEO·관리자 프론트 제외) */
 function allowedOrigins() {
-  // Always allow official ai-ing frontends even if CORS_ALLOWED_ORIGINS is outdated.
   const defaults = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:4173",
-    "https://pay-to-minwoo-web.netlify.app",
-    "https://pay-to-minwoo.netlify.app",
     "https://ai-ing.org",
     "https://www.ai-ing.org",
     "https://ai-ing-6lf.pages.dev"
@@ -161,7 +146,41 @@ function allowedOrigins() {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+  // 설정값이 있어도 ai-ing 기본은 항상 포함
   return [...new Set([...defaults, ...configured])];
+}
+
+function originFromRequest(c: { req: { header: (n: string) => string | undefined } }): string | null {
+  const origin = c.req.header("Origin")?.trim();
+  if (origin) return origin;
+  const referer = c.req.header("Referer")?.trim();
+  if (!referer) return null;
+  try {
+    return new URL(referer).origin;
+  } catch {
+    return null;
+  }
+}
+
+function isAiIngBrowserRequest(c: { req: { header: (n: string) => string | undefined } }): boolean {
+  const origin = originFromRequest(c);
+  if (!origin) return false;
+  return allowedOrigins().includes(origin);
+}
+
+function plain404Html() {
+  return `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"/>
+<meta name="robots" content="noindex,nofollow,noarchive,nosnippet"/>
+<title>404 Not Found</title>
+<style>
+html,body{margin:0;min-height:100%;background:#0b0b0c;color:#8b8f98;font:14px/1.5 system-ui,sans-serif}
+main{min-height:100vh;display:grid;place-items:center;text-align:center;padding:24px}
+h1{margin:0 0 8px;font-size:28px;font-weight:700;color:#e8eaed}
+p{margin:0;color:#6b7280}
+</style>
+</head><body><main><div><h1>404</h1><p>Not Found</p></div></main></body></html>`;
 }
 
 function decimalPlaces(currency: string) {
@@ -408,379 +427,84 @@ app.use(
   "/api/*",
   cors({
     origin(origin) {
-      if (!origin) {
-        return "*";
-      }
-
+      // 브라우저 요청만 반사. 허용 origin 아니면 CORS 차단.
+      if (!origin) return "";
       return allowedOrigins().includes(origin) ? origin : "";
     },
-    allowHeaders: ["Content-Type", "X-Admin-Password", "Idempotency-Key"],
-    allowMethods: ["GET", "POST", "PATCH", "OPTIONS"]
+    allowHeaders: ["Content-Type", "Idempotency-Key"],
+    allowMethods: ["GET", "POST", "OPTIONS"]
   })
 );
 
-// --- Internal dashboard (API 호스트 내부용, 공개 마케팅 사이트와 분리) ---
-// 경로: /dashboard  (레거시 /admin 은 리다이렉트)
-async function serveDashboard(c: any) {
-  const cookieHeader = c.req.header("Cookie") || "";
-  const sessionCookieName = "payment-auth";
-  const expectedToken = "verified";
-  const isAuthenticated = cookieHeader.includes(`${sessionCookieName}=${expectedToken}`);
-
-  if (!isAuthenticated) {
-    return c.html(renderAdminGatePage(""));
-  }
-
-  return c.html(adminHtml, 200, {
-    "Cache-Control": "no-store, no-cache, must-revalidate",
-    "X-Robots-Tag": "noindex, nofollow, noarchive"
-  });
-}
-
-app.get("/dashboard", serveDashboard);
-app.get("/admin", (c) => c.redirect("/dashboard", 301));
-app.get("/admin.html", (c) => c.redirect("/dashboard", 301));
-
-app.post("/dashboard/login", async (c) => {
-  const body = await c.req.parseBody();
-  const password = body.password;
-  const CORRECT_PASSWORD = currentAdminPassword();
-
-  if (password === CORRECT_PASSWORD) {
-    c.header(
-      "Set-Cookie",
-      `payment-auth=verified; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`
-    );
-    return c.redirect("/dashboard");
-  } else {
-    return c.html(renderAdminGatePage("비밀번호가 올바르지 않습니다."));
-  }
-});
-
-// 레거시 로그인 엔드포인트 유지 → 대시보드로
-app.post("/admin/login", async (c) => {
-  const body = await c.req.parseBody();
-  const password = body.password;
-  const CORRECT_PASSWORD = currentAdminPassword();
-
-  if (password === CORRECT_PASSWORD) {
-    c.header(
-      "Set-Cookie",
-      `payment-auth=verified; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=2592000`
-    );
-    return c.redirect("/dashboard");
-  } else {
-    return c.html(renderAdminGatePage("비밀번호가 올바르지 않습니다."));
-  }
-});
-
-function renderAdminGatePage(errorMessage: string) {
-  const errorHtml = errorMessage 
-    ? `<div class="error-msg"><i class="fa-solid fa-triangle-exclamation"></i> ${errorMessage}</div>` 
-    : "";
-    
-  return `<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="robots" content="noindex, nofollow, noarchive">
-  <title>결제 대시보드 로그인 | payment.ai-ing.org</title>
-  
-  <!-- Fonts & Icons -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+KR:wght@300;400;500;700;900&family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
-  <style>
-    :root {
-      --bg-dark: #070a13;
-      --bg-card: rgba(17, 24, 39, 0.7);
-      --border-color: rgba(255, 255, 255, 0.08);
-      
-      --color-primary: #ec4899; /* Pink */
-      --color-secondary: #8b5cf6; /* Violet */
-      
-      --text-main: #f3f4f6;
-      --text-muted: #9ca3af;
-      --font-korean: 'Noto Sans KR', sans-serif;
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    body {
-      background-color: var(--bg-dark);
-      color: var(--text-main);
-      font-family: var(--font-korean);
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      position: relative;
-      overflow: hidden;
-    }
-
-    /* Background Neon Orbs */
-    .bg-orbs {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      z-index: -2;
-      overflow: hidden;
-      pointer-events: none;
-    }
-
-    .orb {
-      position: absolute;
-      border-radius: 50%;
-      filter: blur(150px);
-      opacity: 0.15;
-    }
-
-    .orb-1 {
-      top: -20%;
-      left: -10%;
-      width: 60vw;
-      height: 60vw;
-      background: radial-gradient(circle, var(--color-primary) 0%, transparent 70%);
-    }
-
-    .orb-2 {
-      bottom: -20%;
-      right: -10%;
-      width: 60vw;
-      height: 60vw;
-      background: radial-gradient(circle, var(--color-secondary) 0%, transparent 70%);
-    }
-
-    /* Grid Overlay */
-    .bg-grid {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-image: 
-        linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
-      background-size: 50px 50px;
-      z-index: -1;
-      pointer-events: none;
-    }
-
-    .login-container {
-      width: 100%;
-      max-width: 420px;
-      padding: 20px;
-    }
-
-    .login-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
-      border-radius: 24px;
-      padding: 45px 35px;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(16px);
-      display: flex;
-      flex-direction: column;
-      gap: 25px;
-      text-align: center;
-    }
-
-    .logo-area {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      align-items: center;
-    }
-
-    .logo-icon {
-      width: 64px;
-      height: 64px;
-      border-radius: 20px;
-      background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.8rem;
-      color: #ffffff;
-      box-shadow: 0 8px 20px rgba(236, 72, 153, 0.3);
-    }
-
-    h1 {
-      font-size: 1.45rem;
-      font-weight: 900;
-      background: linear-gradient(135deg, #ffffff 60%, var(--text-muted));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-top: 8px;
-      letter-spacing: -0.5px;
-    }
-
-    p {
-      font-size: 0.88rem;
-      color: var(--text-muted);
-      line-height: 1.5;
-    }
-
-    form {
-      display: flex;
-      flex-direction: column;
-      gap: 15px;
-      margin-top: 10px;
-    }
-
-    .input-group {
-      position: relative;
-    }
-
-    .input-group i {
-      position: absolute;
-      left: 18px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: var(--text-muted);
-      font-size: 1rem;
-    }
-
-    input[type="password"] {
-      width: 100%;
-      padding: 15px 15px 15px 50px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      color: #ffffff;
-      font-size: 1rem;
-      transition: all 0.3s ease;
-    }
-
-    input[type="password"]:focus {
-      outline: none;
-      border-color: var(--color-primary);
-      background: rgba(255, 255, 255, 0.06);
-      box-shadow: 0 0 10px rgba(236, 72, 153, 0.25);
-    }
-
-    button {
-      padding: 15px;
-      border: none;
-      border-radius: 12px;
-      background: linear-gradient(90deg, var(--color-primary), var(--color-secondary));
-      color: #ffffff;
-      font-size: 1rem;
-      font-weight: 700;
-      cursor: pointer;
-      box-shadow: 0 6px 15px rgba(236, 72, 153, 0.15);
-      transition: all 0.3s ease;
-    }
-
-    button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(236, 72, 153, 0.3);
-    }
-
-    button:active {
-      transform: translateY(0);
-    }
-
-    .error-msg {
-      background: rgba(239, 68, 68, 0.15);
-      border: 1px solid rgba(239, 68, 68, 0.2);
-      color: #f87171;
-      padding: 12px;
-      border-radius: 10px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-  </style>
-</head>
-<body>
-  <div class="bg-orbs">
-    <div class="orb orb-1"></div>
-    <div class="orb orb-2"></div>
-  </div>
-  <div class="bg-grid"></div>
-  
-  <div class="login-container">
-    <div class="login-card">
-      <div class="logo-area">
-        <div class="logo-icon"><i class="fa-solid fa-gauge"></i></div>
-        <h1>결제 모니터링 시스템</h1>
-        <p>어드민 대시보드 데이터에 접근하려면<br>비밀번호를 입력하세요.</p>
-      </div>
-      
-      ${errorHtml}
-      
-      <form action="/dashboard/login" method="POST">
-        <div class="input-group">
-          <i class="fa-solid fa-key"></i>
-          <input type="password" name="password" placeholder="비밀번호 입력" required autofocus>
-        </div>
-        <button type="submit">로그인</button>
-      </form>
-    </div>
-  </div>
-</body>
-</html>`;
-}
-
-
-app.use("/api/v1/admin/*", async (c, next) => {
+/**
+ * 브라우저 결제 API: ai-ing.org(및 로컬 개발) Origin/Referer 만 허용.
+ * 캡챠 없음 — PG 콜백/웹훅은 제외.
+ * 관리자 페이지·AEO 노출용 공개 표면은 두지 않음.
+ */
+app.use("/api/v1/*", async (c, next) => {
   if (c.req.method === "OPTIONS") {
     await next();
     return;
   }
 
-  // Allow verified cookie session to bypass header password check
-  const cookieHeader = c.req.header("Cookie") || "";
-  const isAuthenticated = cookieHeader.includes("payment-auth=verified");
-
-  if (isAuthenticated) {
+  const path = new URL(c.req.url).pathname;
+  // PG 웹훅·서버 콜백은 origin 없음
+  if (path.startsWith("/api/v1/webhooks/")) {
     await next();
     return;
   }
+  // 관리자 API 전부 제거
+  if (path.startsWith("/api/v1/admin")) {
+    return c.json({ message: "Not found" }, 404);
+  }
 
-  const password = c.req.header("x-admin-password")?.trim();
-
-  if (password !== currentAdminPassword()) {
-    return c.json({ message: "Admin password is invalid." }, 401);
+  if (!isAiIngBrowserRequest(c)) {
+    return c.json(
+      {
+        message: "Forbidden. Payments are only available from ai-ing.org."
+      },
+      403
+    );
   }
 
   await next();
 });
 
+// 관리자 UI 제거 — 전부 404 (레거시 URL 포함)
+app.get("/dashboard", (c) =>
+  c.html(plain404Html(), 404, {
+    "Cache-Control": "private, no-store",
+    "X-Robots-Tag": "noindex, nofollow, noarchive, nosnippet"
+  })
+);
+app.get("/admin", (c) =>
+  c.html(plain404Html(), 404, {
+    "Cache-Control": "private, no-store",
+    "X-Robots-Tag": "noindex, nofollow"
+  })
+);
+app.get("/admin.html", (c) =>
+  c.html(plain404Html(), 404, {
+    "Cache-Control": "private, no-store",
+    "X-Robots-Tag": "noindex, nofollow"
+  })
+);
+app.post("/dashboard/login", (c) => c.json({ message: "Not found" }, 404));
+app.post("/admin/login", (c) => c.json({ message: "Not found" }, 404));
+
+// 루트: 서비스 카탈로그/스키마 노출 없음 (AEO·크롤 표면 제거)
 app.get("/", (c) =>
-  c.json({
-    ok: true,
-    service: "pay-to-minwoo-payment-core",
-    runtime: "nodejs-vercel",
-    mode: "PortOne & PayPal",
-    frontendBaseUrl: currentFrontendBaseUrl(),
-    backendBaseUrl: currentBackendBaseUrl(),
-    domains: ["Order", "PaymentAttempt", "ProviderEvent", "SettlementRecord", "LedgerEntry", "AuditLog", "IdempotencyRecord"]
+  c.html(plain404Html(), 404, {
+    "Cache-Control": "private, no-store",
+    "X-Robots-Tag": "noindex, nofollow, noarchive, nosnippet",
+    "Referrer-Policy": "no-referrer"
   })
 );
 
+// health: ai-ing 브라우저에서만 (업타임 봇은 별도 모니터링 권장)
 app.get("/api/v1/health", (c) =>
   c.json({
     ok: true,
-    service: "pay-to-minwoo-payment-core",
-    runtime: "nodejs-vercel",
-    mode: "PortOne & PayPal",
-    frontendBaseUrl: currentFrontendBaseUrl(),
-    backendBaseUrl: currentBackendBaseUrl(),
-    paypalEnvironment: process.env.PAYPAL_ENV?.trim().toLowerCase() === "live" ? "live" : "sandbox",
     now: nowIso()
   })
 );
@@ -1255,171 +979,7 @@ app.post("/api/v1/webhooks/paypal", async (c) => {
   return c.json({ ok: true, eventType, providerEventId, attemptId: attempt.id, orderId: attempt.orderId });
 });
 
-app.get("/api/v1/admin/dashboard", async (c) => {
-  const limit = Math.min(Number(c.req.query("limit") ?? "20"), 100);
-  const [orderCount, paymentAttemptCount, orders, attempts] = await Promise.all([
-    countOrders(),
-    countPaymentAttempts(),
-    listRecentOrders(limit),
-    listRecentPaymentAttempts(limit)
-  ]);
-
-  return c.json({
-    ok: true,
-    mode: "PortOne & PayPal",
-    now: nowIso(),
-    totals: {
-      orders: orderCount,
-      paymentAttempts: paymentAttemptCount
-    },
-    orders,
-    attempts
-  });
-});
-
-app.get("/api/v1/admin/tables", async (c) =>
-  c.json({
-    ok: true,
-    tables: await listAdminTables()
-  })
-);
-
-app.get("/api/v1/admin/tables/:tableName/rows", async (c) => {
-  const tableName = c.req.param("tableName") as AdminTableName;
-  const page = Number(c.req.query("page") ?? "1");
-  const pageSize = Number(c.req.query("pageSize") ?? "20");
-  const table = await listAdminTableRows(tableName, page, pageSize);
-
-  if (!table) {
-    return c.json({ message: "Admin table not found." }, 404);
-  }
-
-  return c.json({ ok: true, ...table });
-});
-
-app.patch("/api/v1/admin/tables/:tableName/rows/:rowId", async (c) => {
-  const tableName = c.req.param("tableName") as AdminTableName;
-  const rowId = c.req.param("rowId");
-  const body = (await c.req.json()) as { values?: Record<string, unknown> };
-  const row = await updateAdminTableRow(tableName, rowId, body.values ?? {});
-
-  if (!row) {
-    return c.json({ message: "Admin table row not found or no editable values were provided." }, 404);
-  }
-
-  return c.json({ ok: true, table: tableName, row });
-});
-
-app.post("/api/v1/admin/payments/:attemptId/refund", async (c) => {
-  const attemptId = c.req.param("attemptId");
-  const attempt = await getPaymentAttemptById(attemptId);
-
-  if (!attempt) {
-    return c.json({ ok: false, message: "Payment attempt not found." }, 404);
-  }
-
-  if (attempt.status === "REFUNDED") {
-    return c.json({ ok: false, message: "This payment attempt is already refunded." }, 400);
-  }
-
-  if (attempt.status !== "CAPTURED" && attempt.status !== "APPROVED") {
-    return c.json({ ok: false, message: `Only captured or approved payments can be refunded. Current status: ${attempt.status}` }, 400);
-  }
-
-  const createdAt = nowIso();
-
-  try {
-    if (attempt.provider === "paypal") {
-      if (!attempt.providerCaptureId) {
-        return c.json({ ok: false, message: "PayPal Capture ID (providerCaptureId) is missing for this attempt." }, 400);
-      }
-      const credentials = getPayPalCredentials();
-      const refundId = makeId("ref");
-      
-      // Perform PayPal refund
-      const paypalRes = await refundPayPalCapture(credentials, attempt.providerCaptureId, refundId);
-      
-      // Update Database
-      await updatePaymentAttempt(attempt.id, { status: "REFUNDED", updatedAt: createdAt });
-      await updateOrderStatus(attempt.orderId, "REFUNDED", attempt.id);
-      await updateSettlementStatus(attempt.id, "REFUNDED");
-
-      const settlement = await getSettlementByAttemptId(attempt.id);
-      await insertLedgerEntry({
-        id: makeId("ledger"),
-        orderId: attempt.orderId,
-        attemptId: attempt.id,
-        settlementId: settlement?.id ?? null,
-        type: "payment_refunded",
-        amount: attempt.amount,
-        currency: attempt.currency,
-        direction: "debit",
-        createdAt,
-        metadata: { provider: "paypal", paypalRefundResponse: paypalRes }
-      });
-
-      await log("payment_attempt", attempt.id, "REFUNDED", `PayPal capture ${attempt.providerCaptureId} was refunded successfully.`, { paypalRes });
-      return c.json({ ok: true, message: "PayPal refund processed successfully.", refundId: paypalRes.id });
-    } else if (attempt.provider === "portone") {
-      const secret = process.env.PORTONE_API_SECRET?.trim();
-      
-      let portoneRes: any = { mock: true };
-      
-      if (secret) {
-        // Request PortOne V2 cancel payment API
-        const portoneUrl = `https://api.portone.io/payments/${attempt.providerOrderId}/cancel`;
-        const res = await fetch(portoneUrl, {
-          method: "POST",
-          headers: {
-            "Authorization": `PortOne ${secret}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            reason: "관리자 요청 환불 (Administrator refund request)"
-          })
-        });
-
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`PortOne V2 API refund request failed with status ${res.status}: ${errText}`);
-        }
-        portoneRes = await res.json();
-      } else {
-        // Fallback: If PortOne secret is not configured, we do a mock database update for local testing/graceful handling
-        console.warn("PORTONE_API_SECRET is not configured. Simulating successful mock refund in DB.");
-      }
-
-      // Update Database
-      await updatePaymentAttempt(attempt.id, { status: "REFUNDED", updatedAt: createdAt });
-      await updateOrderStatus(attempt.orderId, "REFUNDED", attempt.id);
-      await updateSettlementStatus(attempt.id, "REFUNDED");
-
-      const settlement = await getSettlementByAttemptId(attempt.id);
-      await insertLedgerEntry({
-        id: makeId("ledger"),
-        orderId: attempt.orderId,
-        attemptId: attempt.id,
-        settlementId: settlement?.id ?? null,
-        type: "payment_refunded",
-        amount: attempt.amount,
-        currency: attempt.currency,
-        direction: "debit",
-        createdAt,
-        metadata: { provider: "portone", portoneResponse: portoneRes }
-      });
-
-      await log("payment_attempt", attempt.id, "REFUNDED", `PortOne payment ${attempt.providerOrderId} was refunded successfully.`, { portoneRes });
-      return c.json({ ok: true, message: "PortOne refund processed successfully.", response: portoneRes });
-    } else {
-      return c.json({ ok: false, message: `Unknown payment provider: ${attempt.provider}` }, 400);
-    }
-  } catch (error: any) {
-    console.error("Refund processing failed:", error);
-    await log("payment_attempt", attempt.id, "REFUND_FAILED", `Refund failed: ${error.message}`);
-    return c.json({ ok: false, message: `Refund failed: ${error.message}` }, 500);
-  }
-});
-
+// 레거시 기부 API — 410
 app.post("/api/v1/donations/intents", (c) =>
   c.json({ message: "Removed. Use POST /api/v1/orders." }, 410)
 );
@@ -1432,6 +992,11 @@ app.get("/api/v1/donations/attempts/:attemptId", (c) =>
   c.json({ message: "Removed. Use GET /api/v1/payment-attempts/:attemptId." }, 410)
 );
 
-app.notFound((c) => c.json({ message: "Not found" }, 404));
+app.notFound((c) =>
+  c.html(plain404Html(), 404, {
+    "Cache-Control": "private, no-store",
+    "X-Robots-Tag": "noindex, nofollow, noarchive, nosnippet"
+  })
+);
 
 export default app;

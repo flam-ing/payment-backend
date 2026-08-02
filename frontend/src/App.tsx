@@ -4,7 +4,6 @@ import { copy } from "./lib/content";
 import { HomePage } from "./pages/HomePage";
 import { SuccessPage } from "./pages/SuccessPage";
 import { CancelPage } from "./pages/CancelPage";
-import { AdminPage } from "./pages/AdminPage";
 
 export default function App() {
   const locale = detectLocale();
@@ -17,8 +16,6 @@ export default function App() {
         <Route path="/" element={<HomePage apiBaseUrl={apiBaseUrl} copy={selectedCopy} locale={locale} />} />
         <Route path="/success" element={<SuccessPage copy={selectedCopy} />} />
         <Route path="/cancel" element={<CancelPage copy={selectedCopy} />} />
-        <Route path="/dashboard" element={<AdminPage apiBaseUrl={apiBaseUrl} />} />
-        <Route path="/admin" element={<AdminPage apiBaseUrl={apiBaseUrl} />} />
       </Routes>
     </div>
   );
