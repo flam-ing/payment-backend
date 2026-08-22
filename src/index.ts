@@ -71,6 +71,11 @@ const AI_ING_PRODUCT_CATALOG: Record<string, { amount: number; currency: string;
     currency: "KRW",
     itemName: "AX 맞춤형 컨설팅 & 프로젝트 1개월 집중 과정"
   },
+  consult300k: {
+    amount: 300000,
+    currency: "KRW",
+    itemName: "AX 맞춤형 컨설팅 & 심화 프로젝트 과정"
+  },
   consult500k: {
     amount: 500000,
     currency: "KRW",
