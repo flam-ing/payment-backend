@@ -843,6 +843,65 @@ app.get("/api/v1/payments/status/card", async (c) => {
   }
 });
 
+const POLAR_PRODUCTS: Record<string, string> = {
+  pdf: "b06be512-ae0a-4999-ae9c-af8f868ca7f1",
+  consult: "2261a985-8fa7-4ed2-912a-b1c949243d65",
+  consult100k: "a1b0a010-968a-4d93-854b-c14d140024bd",
+  consult200k: "8b172f92-5654-4e18-8180-f50f625f6fc3",
+  consult300k: "9b12359c-445d-4ce8-9f28-7cab05cee515",
+  consult500k: "72df5490-f530-490b-ad64-e907d58fcc7d"
+};
+
+app.post("/api/v1/payments/polar/checkout", async (c) => {
+  try {
+    const body = (await c.req.json().catch(() => ({}))) as {
+      productCode?: string;
+      customer?: { fullName?: string; email?: string };
+    };
+    const productCode = (body.productCode || "pdf").trim();
+    const polarProductId = POLAR_PRODUCTS[productCode] || POLAR_PRODUCTS.pdf;
+
+    const token =
+      process.env.POLAR_ACCESS_TOKEN ||
+      "polar_oat_kCEWaL3P9zJv5PsRUs0JHrKtVE269pQhlZlzJ2Km03l";
+
+    const payload: Record<string, any> = {
+      products: [polarProductId],
+      success_url: "https://ai-ing.org/payment.html?status=success&provider=polar"
+    };
+
+    const email = body.customer?.email?.trim();
+    if (email && email.includes("@") && !email.includes("example.com")) {
+      payload.customer_email = email;
+    }
+    const name = body.customer?.fullName?.trim();
+    if (name && name !== "구매자") {
+      payload.customer_name = name;
+    }
+
+    const res = await fetch("https://api.polar.sh/v1/checkouts/custom/", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.url) {
+      const errMsg =
+        data.detail?.[0]?.msg || data.message || "Polar checkout creation failed";
+      return c.json({ ok: false, message: errMsg }, 400);
+    }
+
+    return c.json({ ok: true, checkoutUrl: data.url });
+  } catch (error: any) {
+    console.error("[polar checkout error]", error);
+    return c.json({ ok: false, message: error.message }, 500);
+  }
+});
+
 app.get("/api/v1/orders/:orderId", async (c) => {
   const order = await getOrderById(c.req.param("orderId"));
   if (!order) {
