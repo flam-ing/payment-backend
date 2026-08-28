@@ -750,17 +750,25 @@ app.post("/api/v1/orders", async (c) => {
     return c.json({ ok: true, replayed: true, order: existing });
   }
 
-  const customerInfo = body.customer
-    ? {
-        name: body.customer.fullName?.trim() || "",
-        email: body.customer.email?.trim() || "",
-        phone: body.customer.phoneNumber?.trim() || ""
-      }
-    : null;
+  const clientIp =
+    c.req.header("cf-connecting-ip")?.trim() ||
+    c.req.header("x-real-ip")?.trim() ||
+    c.req.header("x-vercel-forwarded-for")?.trim() ||
+    c.req.header("x-forwarded-for")?.split(",")[0].trim() ||
+    "";
 
-  const noteStr = customerInfo && (customerInfo.name || customerInfo.email || customerInfo.phone)
-    ? JSON.stringify({ customer: customerInfo, note: body.note?.trim() || "" })
-    : body.note?.trim() || "";
+  const customerInfo = {
+    name: body.customer?.fullName?.trim() || "",
+    email: body.customer?.email?.trim() || "",
+    phone: body.customer?.phoneNumber?.trim() || "",
+    ip: clientIp
+  };
+
+  const noteStr = JSON.stringify({
+    customer: customerInfo,
+    ip: clientIp,
+    note: body.note?.trim() || ""
+  });
 
   const order = {
     id: makeId("order"),

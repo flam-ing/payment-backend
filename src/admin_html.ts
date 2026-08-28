@@ -303,7 +303,7 @@ export const adminHtml = `<!DOCTYPE html>
 
   async function fetchTableData(tableName, page = 1) {
     try {
-      const res = await fetch(\`\${backendBaseUrl}/api/v1/admin/tables/\${tableName}/rows?page=\${page}&pageSize=20\`, {
+      const res = await fetch(`${backendBaseUrl}/api/v1/admin/tables/${tableName}/rows?page=${page}&pageSize=20`, {
         headers: { 'x-admin-password': adminPassword }
       });
       const data = await res.json();
@@ -317,7 +317,7 @@ export const adminHtml = `<!DOCTYPE html>
   }
 
   function parseCustomer(note) {
-    if (!note) return { name: '구매자', email: '-', phone: '-' };
+    if (!note) return { name: '구매자', email: '-', phone: '-', ip: '-' };
     try {
       if (typeof note === 'string' && note.startsWith('{')) {
         const parsed = JSON.parse(note);
@@ -325,12 +325,16 @@ export const adminHtml = `<!DOCTYPE html>
           return {
             name: parsed.customer.name || parsed.customer.fullName || '구매자',
             email: parsed.customer.email || '-',
-            phone: parsed.customer.phone || parsed.customer.phoneNumber || '-'
+            phone: parsed.customer.phone || parsed.customer.phoneNumber || '-',
+            ip: parsed.customer.ip || parsed.ip || '-'
           };
+        }
+        if (parsed.ip) {
+          return { name: '구매자', email: '-', phone: '-', ip: parsed.ip };
         }
       }
     } catch (e) {}
-    return { name: typeof note === 'string' ? note : '구매자', email: '-', phone: '-' };
+    return { name: typeof note === 'string' ? note : '구매자', email: '-', phone: '-', ip: '-' };
   }
 
   function getMethodBadge(order) {
@@ -396,6 +400,7 @@ export const adminHtml = `<!DOCTYPE html>
               <span class="customer-name">👤 \${cust.name}</span>
               <span class="customer-detail">📞 \${cust.phone}</span>
               <span class="customer-detail">📧 \${cust.email}</span>
+              \${cust.ip && cust.ip !== '-' ? \`<span class="customer-detail" style="font-family:monospace; color:#818cf8;">🌐 IP: \${cust.ip}</span>\` : ''}
             </div>
           </td>
           <td style="font-weight:700; color:#fff; font-size:14px;">\${formattedAmount}</td>
@@ -438,7 +443,7 @@ export const adminHtml = `<!DOCTYPE html>
         }
         if (k === 'note' && typeof val === 'string' && val.startsWith('{')) {
           const c = parseCustomer(val);
-          return \`<td><div class="customer-box"><span class="customer-name">\${c.name}</span><span class="customer-detail">\${c.phone} | \${c.email}</span></div></td>\`;
+          return \`<td><div class="customer-box"><span class="customer-name">\${c.name}</span><span class="customer-detail">\${c.phone} | \${c.email}</span>\${c.ip && c.ip !== '-' ? \`<span class="customer-detail" style="font-family:monospace; color:#818cf8;">IP: \${c.ip}</span>\` : ''}</div></td>\`;
         }
         if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
         return \`<td>\${val ?? '-'}</td>\`;
