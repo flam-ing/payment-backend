@@ -63,7 +63,8 @@ type CreateOrderBody = Partial<{
  * productCode가 없으면 기존 흐름을 그대로 유지한다.
  */
 const AI_ING_PRODUCT_CATALOG: Record<string, { amount: number; currency: string; itemName: string }> = {
-  test100: { amount: 100, currency: "KRW", itemName: "[테스트] 100원 결제 승인 테스트" },
+  test1000: { amount: 1000, currency: "KRW", itemName: "[테스트] 1,000원 결제 승인 테스트" },
+  test100: { amount: 1000, currency: "KRW", itemName: "[테스트] 1,000원 결제 승인 테스트" },
   pdf: { amount: 10000, currency: "KRW", itemName: "온라인 PDF 교재" },
   consult: {
     amount: 50000,
