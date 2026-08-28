@@ -303,7 +303,7 @@ export const adminHtml = `<!DOCTYPE html>
 
   async function fetchTableData(tableName, page = 1) {
     try {
-      const res = await fetch(`${backendBaseUrl}/api/v1/admin/tables/${tableName}/rows?page=${page}&pageSize=20`, {
+      const res = await fetch(\`\${backendBaseUrl}/api/v1/admin/tables/\${tableName}/rows?page=\${page}&pageSize=20\`, {
         headers: { 'x-admin-password': adminPassword }
       });
       const data = await res.json();
