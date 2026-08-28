@@ -565,6 +565,146 @@ app.get("/api/v1/admin/tables/:tableName/rows", async (c) => {
   return c.json({ ok: true, ...table });
 });
 
+app.post("/api/v1/admin/payments/:id/refund", async (c) => {
+  if (!checkAdminAuth(c)) {
+    return c.json({ ok: false, message: "Unauthorized admin access." }, 401);
+  }
+
+  const id = c.req.param("id");
+  let body: { orderId?: string } = {};
+  try {
+    body = await c.req.json();
+  } catch (e) {}
+
+  const orderId = body.orderId || id;
+
+  let attempt = await getPaymentAttemptById(id);
+  let order = await getOrderById(orderId);
+
+  if (!order && attempt?.orderId) {
+    order = await getOrderById(attempt.orderId);
+  }
+  if (!attempt && order?.activePaymentAttemptId) {
+    attempt = await getPaymentAttemptById(order.activePaymentAttemptId);
+  }
+  if (!order && !attempt) {
+    order = await getOrderById(id);
+  }
+
+  if (!order && !attempt) {
+    return c.json({ ok: false, message: "환불 대상 주문 또는 결제 시도를 찾을 수 없습니다." }, 404);
+  }
+
+  const effectiveOrderId = order?.id || attempt?.orderId || id;
+  const effectiveAttemptId = attempt?.id || order?.activePaymentAttemptId;
+  const provider = attempt?.provider || "portone";
+
+  // PortOne Cancel API
+  if (provider === "portone" || provider === "kakaopay" || provider === "card" || provider === "inicis") {
+    const portoneSecret = (c.env as any)?.PORTONE_API_SECRET || process.env.PORTONE_API_SECRET;
+    if (portoneSecret) {
+      try {
+        const cancelRes = await fetch(`https://api.portone.io/payments/${encodeURIComponent(effectiveOrderId)}/cancel`, {
+          method: "POST",
+          headers: {
+            "Authorization": `PortOne ${portoneSecret}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            reason: "관리자 대시보드 환불 처리"
+          })
+        });
+        const cancelData = await cancelRes.json();
+        console.log("[PortOne Cancel Response]", cancelData);
+      } catch (err) {
+        console.warn("[PortOne Cancel API Error]", err);
+      }
+    }
+  }
+
+  // PayPal Refund API
+  if (provider === "paypal" && attempt?.providerCaptureId) {
+    try {
+      const paypalToken = await getPayPalAccessToken(c.env);
+      const ppUrl = `${getPayPalBaseUrl(c.env)}/v2/payments/captures/${encodeURIComponent(attempt.providerCaptureId)}/refund`;
+      await fetch(ppUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${paypalToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          note_to_payer: "AI-ing Admin Refund"
+        })
+      });
+    } catch (err) {
+      console.warn("[PayPal Refund API Error]", err);
+    }
+  }
+
+  // Polar Refund API
+  if (provider === "polar" && (attempt?.providerOrderId || attempt?.providerCaptureId)) {
+    const polarToken = (c.env as any)?.POLAR_ACCESS_TOKEN || process.env.POLAR_ACCESS_TOKEN;
+    if (polarToken) {
+      try {
+        await fetch("https://api.polar.sh/v1/refunds", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${polarToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            order_id: attempt.providerOrderId || attempt.providerCaptureId,
+            reason: "customer_request"
+          })
+        });
+      } catch (err) {
+        console.warn("[Polar Refund API Error]", err);
+      }
+    }
+  }
+
+  // Update DB status to REFUNDED
+  if (effectiveOrderId) {
+    await updateOrderStatus(effectiveOrderId, "REFUNDED");
+  }
+  if (effectiveAttemptId) {
+    await updatePaymentAttempt(effectiveAttemptId, {
+      status: "REFUNDED",
+      updatedAt: nowIso()
+    });
+  }
+
+  // Record Audit Log
+  await insertAuditLog({
+    id: makeId("audit"),
+    entityType: "order",
+    entityId: effectiveOrderId,
+    action: "ORDER_REFUNDED",
+    actor: "admin",
+    message: `관리자에 의해 주문 ${effectiveOrderId}이(가) 전액 환불/취소되었습니다.`,
+    metadata: { attemptId: effectiveAttemptId, provider },
+    createdAt: nowIso()
+  });
+
+  return c.json({
+    ok: true,
+    message: "환불 처리가 성공적으로 완료되었습니다.",
+    orderId: effectiveOrderId,
+    status: "REFUNDED"
+  });
+});
+
+app.post("/api/v1/admin/orders/:id/refund", async (c) => {
+  const id = c.req.param("id");
+  const req = new Request(`${new URL(c.req.url).origin}/api/v1/admin/payments/${encodeURIComponent(id)}/refund`, {
+    method: "POST",
+    headers: c.req.raw.headers,
+    body: JSON.stringify({ orderId: id })
+  });
+  return app.fetch(req, c.env);
+});
+
 // 루트: 서비스 카탈로그/스키마 노출 없음 (AEO·크롤 표면 제거)
 app.get("/", (c) =>
   c.html(plain404Html(), 404, {
