@@ -172,22 +172,18 @@ export async function createPayPalOrder(input: {
   return { order, approveUrl };
 }
 
-export async function capturePayPalOrder(credentials: PayPalCredentials, providerOrderId: string, requestId: string) {
+export async function capturePayPalOrder(credentials: PayPalCredentials, providerOrderId: string, requestId?: string) {
   return paypalRequest<PayPalCaptureResponse>(credentials, `/v2/checkout/orders/${providerOrderId}/capture`, {
     method: "POST",
-    headers: {
-      "PayPal-Request-Id": requestId
-    },
+    headers: requestId ? { "PayPal-Request-Id": requestId } : {},
     body: JSON.stringify({})
   });
 }
 
-export async function refundPayPalCapture(credentials: PayPalCredentials, captureId: string, requestId: string) {
+export async function refundPayPalCapture(credentials: PayPalCredentials, captureId: string, requestId?: string) {
   return paypalRequest<any>(credentials, `/v2/payments/captures/${captureId}/refund`, {
     method: "POST",
-    headers: {
-      "PayPal-Request-Id": requestId
-    },
+    headers: requestId ? { "PayPal-Request-Id": requestId } : {},
     body: JSON.stringify({})
   });
 }

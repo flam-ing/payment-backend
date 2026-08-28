@@ -33,6 +33,7 @@ import {
 import { adminHtml } from "./admin_html";
 import {
   capturePayPalOrder,
+  refundPayPalCapture,
   createPayPalOrder,
   getPayPalCredentials,
   getPayPalWebhookHeaders,
@@ -625,18 +626,8 @@ app.post("/api/v1/admin/payments/:id/refund", async (c) => {
   // PayPal Refund API
   if (provider === "paypal" && attempt?.providerCaptureId) {
     try {
-      const paypalToken = await getPayPalAccessToken(c.env);
-      const ppUrl = `${getPayPalBaseUrl(c.env)}/v2/payments/captures/${encodeURIComponent(attempt.providerCaptureId)}/refund`;
-      await fetch(ppUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${paypalToken}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          note_to_payer: "AI-ing Admin Refund"
-        })
-      });
+      const credentials = getPayPalCredentials();
+      await refundPayPalCapture(credentials, attempt.providerCaptureId);
     } catch (err) {
       console.warn("[PayPal Refund API Error]", err);
     }
