@@ -495,34 +495,36 @@ export const adminHtml = `<!DOCTYPE html>
   }
 
   async function triggerRefund(attemptId, orderId) {
-    if (!attemptId) {
-      alert('환불 처리를 위한 결제 시도 ID(Attempt ID)가 존재하지 않습니다.');
+    const targetId = attemptId || orderId;
+    if (!targetId) {
+      alert('환불 처리를 위한 주문/결제 ID가 존재하지 않습니다.');
       return;
     }
-    if (!confirm(\`정말로 이 주문(\${orderId})의 결제를 환불(취소)하시겠습니까?\\nPG사로 환불 요청이 즉시 전송됩니다.\`)) {
+    if (!confirm(\`정말로 이 주문(\${orderId || targetId})의 결제를 환불(취소)하시겠습니까?\\nPG사 및 결제망으로 환불 요청이 전송됩니다.\`)) {
       return;
     }
     
     try {
-      const res = await fetch(\`\${backendBaseUrl}/api/v1/admin/payments/\${attemptId}/refund\`, {
+      const res = await fetch(\`\${backendBaseUrl}/api/v1/admin/payments/\${encodeURIComponent(targetId)}/refund\`, {
         method: 'POST',
         headers: {
           'x-admin-password': adminPassword,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({ orderId: orderId || targetId })
       });
       const data = await res.json();
       if (data.ok) {
-        alert('환불이 성공적으로 처리되었습니다.');
+        alert('환불 처리가 성공적으로 완료되었습니다.');
         fetchDashboard();
         if (currentTab !== 'dashboard') {
           fetchTableData(currentTab, currentPage);
         }
       } else {
-        alert(\`환불 실패: \${data.message}\`);
+        alert(\`환불 실패: \${data.message || '알 수 없는 오류'}\`);
       }
     } catch (e) {
-      alert(\`오류가 발생했습니다: \${e.message}\`);
+      alert(\`환불 처리 중 오류가 발생했습니다: \${e.message}\`);
     }
   }
 
