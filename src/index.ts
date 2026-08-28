@@ -508,15 +508,32 @@ app.get("/api/v1/admin/dashboard", async (c) => {
     listRecentPaymentAttempts(limit)
   ]);
 
+  const attemptMap = new Map();
+  for (const a of attempts) {
+    if (a.orderId) attemptMap.set(a.orderId, a);
+    if (a.id) attemptMap.set(a.id, a);
+  }
+
+  const enrichedOrders = orders.map((o) => {
+    const attempt = o.activePaymentAttemptId ? attemptMap.get(o.activePaymentAttemptId) : attemptMap.get(o.id);
+    return {
+      ...o,
+      provider: attempt?.provider || (o.note?.includes("kakaopay") ? "kakaopay" : o.note?.includes("card") ? "card" : "portone"),
+      providerOrderId: attempt?.providerOrderId || "",
+      providerCaptureId: attempt?.providerCaptureId || "",
+      attemptStatus: attempt?.status || o.status
+    };
+  });
+
   return c.json({
     ok: true,
-    mode: "PortOne & PayPal",
+    mode: "PortOne & PayPal & Polar",
     now: nowIso(),
     totals: {
       orders: orderCount,
       paymentAttempts: paymentAttemptCount
     },
-    orders,
+    orders: enrichedOrders,
     attempts
   });
 });
@@ -601,6 +618,18 @@ app.post("/api/v1/orders", async (c) => {
     return c.json({ ok: true, replayed: true, order: existing });
   }
 
+  const customerInfo = body.customer
+    ? {
+        name: body.customer.fullName?.trim() || "",
+        email: body.customer.email?.trim() || "",
+        phone: body.customer.phoneNumber?.trim() || ""
+      }
+    : null;
+
+  const noteStr = customerInfo && (customerInfo.name || customerInfo.email || customerInfo.phone)
+    ? JSON.stringify({ customer: customerInfo, note: body.note?.trim() || "" })
+    : body.note?.trim() || "";
+
   const order = {
     id: makeId("order"),
     idempotencyKey,
@@ -609,7 +638,7 @@ app.post("/api/v1/orders", async (c) => {
     region: body.region,
     amount: toMinorUnits(requestedAmount, currency),
     currency,
-    note: body.note?.trim() || "",
+    note: noteStr,
     status: "CREATED" as OrderStatus,
     createdAt: nowIso()
   };

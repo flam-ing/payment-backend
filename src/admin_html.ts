@@ -3,7 +3,6 @@ export const adminHtml = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- 내부 결제 모니터링 — 검색엔진/AEO·GEO 수집 대상 아님 -->
 <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
 <meta name="googlebot" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
@@ -13,7 +12,7 @@ export const adminHtml = `<!DOCTYPE html>
 <style>
   :root {
     --bg-dark: #07080d;
-    --card-bg: rgba(18, 20, 29, 0.7);
+    --card-bg: rgba(18, 20, 29, 0.85);
     --card-border: rgba(255, 255, 255, 0.08);
     --accent: #8c82ff;
     --accent-hover: #7669ff;
@@ -33,14 +32,13 @@ export const adminHtml = `<!DOCTYPE html>
   }
   .navbar {
     position: sticky; top: 0; z-index: 100;
-    background: rgba(7, 8, 13, 0.85);
+    background: rgba(7, 8, 13, 0.9);
     backdrop-filter: blur(16px);
     border-bottom: 1px solid var(--card-border);
     padding: 16px 24px;
     display: flex; justify-content: space-between; align-items: center;
   }
   .brand { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 18px; }
-  .brand img { width: 32px; height: 32px; border-radius: 6px; }
   .brand span { color: var(--accent); }
   
   .nav-actions { display: flex; align-items: center; gap: 12px; }
@@ -58,7 +56,7 @@ export const adminHtml = `<!DOCTYPE html>
   .btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
   .btn-danger:hover { background: #dc2626; }
 
-  .container { max-width: 1280px; margin: 24px auto; padding: 0 24px; }
+  .container { max-width: 1380px; margin: 24px auto; padding: 0 24px; }
   
   /* Password Lock Screen */
   .auth-overlay {
@@ -111,31 +109,41 @@ export const adminHtml = `<!DOCTYPE html>
     border-radius: 12px; overflow: hidden;
   }
   .table-header-bar {
-    padding: 16px 20px; display: flex; justify-space-between; align-items: center;
+    padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;
     border-bottom: 1px solid var(--card-border);
   }
   .table-title { font-size: 16px; font-weight: 700; }
   .table-search {
     padding: 8px 12px; background: rgba(0,0,0,0.3);
     border: 1px solid var(--card-border); border-radius: 6px;
-    color: #fff; font-size: 13px; outline: none; width: 220px;
+    color: #fff; font-size: 13px; outline: none; width: 260px;
   }
 
   .table-wrapper { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13.5px; }
-  th { background: rgba(255,255,255,0.03); color: var(--text-sub); padding: 12px 20px; font-weight: 600; border-bottom: 1px solid var(--card-border); white-space: nowrap; }
-  td { padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.04); white-space: nowrap; }
+  th { background: rgba(255,255,255,0.03); color: var(--text-sub); padding: 12px 18px; font-weight: 600; border-bottom: 1px solid var(--card-border); white-space: nowrap; }
+  td { padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; }
   tr:hover td { background: rgba(255,255,255,0.02); }
 
   /* Badges */
   .badge {
-    display: inline-block; padding: 4px 10px; border-radius: 20px;
-    font-size: 11.5px; font-weight: 700; text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 20px;
+    font-size: 11.5px; font-weight: 700; white-space: nowrap;
   }
   .badge-success { background: rgba(16, 185, 129, 0.15); color: var(--success); }
   .badge-warning { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
   .badge-danger { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
   .badge-info { background: rgba(140, 130, 255, 0.15); color: var(--accent); }
+  
+  /* Method Badges */
+  .badge-kakao { background: #FEE500; color: #191919; font-weight: 800; }
+  .badge-card { background: rgba(140, 130, 255, 0.2); color: #b4aeff; border: 1px solid rgba(140, 130, 255, 0.4); }
+  .badge-polar { background: rgba(0, 98, 255, 0.2); color: #60a5fa; border: 1px solid rgba(0, 98, 255, 0.4); }
+  .badge-paypal { background: rgba(0, 48, 135, 0.3); color: #93c5fd; border: 1px solid rgba(0, 48, 135, 0.5); }
+
+  .customer-box { display: flex; flex-direction: column; gap: 3px; }
+  .customer-name { font-weight: 700; color: #fff; font-size: 13.5px; }
+  .customer-detail { font-size: 11.5px; color: var(--text-sub); }
 
   /* Pagination */
   .pagination {
@@ -150,8 +158,8 @@ export const adminHtml = `<!DOCTYPE html>
 <div id="auth-modal" class="auth-overlay">
   <div class="auth-box">
     <div style="font-size: 36px; margin-bottom: 12px;">🔐</div>
-    <h2>Turso DB Admin Login</h2>
-    <p>Turso 데이터베이스 대장 관리를 위한 암호를 입력하세요.</p>
+    <h2>에이아잉 결제 관리자 로그인</h2>
+    <p>실시간 결제 모니터링 대시보드 암호를 입력하세요.</p>
     <input type="password" id="admin-pass-input" class="input-field" placeholder="Admin Password" onkeyup="if(event.key==='Enter') login()">
     <button class="btn btn-primary" style="width: 100%; padding: 12px;" onclick="login()">로그인</button>
   </div>
@@ -160,12 +168,11 @@ export const adminHtml = `<!DOCTYPE html>
 <!-- Header Navbar -->
 <nav class="navbar">
   <div class="brand">
-    <img src="logo.png" alt="AI-ing Logo">
-    <div>에이아잉 <span>Turso DB Admin</span></div>
+    <div>에이아잉 <span>결제 관리자 (Admin)</span></div>
   </div>
   <div class="nav-actions">
     <span id="live-indicator" style="font-size: 12px; color: var(--success); display: flex; align-items: center; gap: 6px;">
-      <span style="width: 8px; height: 8px; background: var(--success); border-radius: 50%;"></span> Turso DB Live
+      <span style="width: 8px; height: 8px; background: var(--success); border-radius: 50%;"></span> 실시간 데이터 연동
     </span>
     <button class="btn" onclick="fetchDashboard()">🔄 새로고침</button>
     <button class="btn" onclick="logout()">로그아웃</button>
@@ -179,17 +186,17 @@ export const adminHtml = `<!DOCTYPE html>
     <div class="kpi-card">
       <div class="kpi-title">총 주문 수 (Total Orders)</div>
       <div class="kpi-value" id="kpi-orders">-</div>
-      <div class="kpi-sub">📦 Turso DB 실시간 기입</div>
+      <div class="kpi-sub">📦 Turso DB 실시간 주문 대장</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-title">총 결제 시도 (Payment Attempts)</div>
       <div class="kpi-value" id="kpi-attempts">-</div>
-      <div class="kpi-sub">💳 PG/PayPal 트랜잭션 수</div>
+      <div class="kpi-sub">💳 포트원/이니시스/카카오/Polar 승인</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-title">백엔드 작동 모드</div>
-      <div class="kpi-value" style="font-size: 20px; color: var(--accent);" id="kpi-mode">PayPal Live</div>
-      <div class="kpi-sub" style="color: var(--text-sub);" id="kpi-backend-url">Vercel Backend</div>
+      <div class="kpi-title">결제 연동 상태</div>
+      <div class="kpi-value" style="font-size: 18px; color: var(--accent);" id="kpi-mode">PortOne · Polar · Inicis Live</div>
+      <div class="kpi-sub" style="color: var(--text-sub);" id="kpi-backend-url">payment.ai-ing.org</div>
     </div>
   </div>
 
@@ -207,22 +214,24 @@ export const adminHtml = `<!DOCTYPE html>
   <div class="table-card">
     <div class="table-header-bar">
       <div class="table-title" id="current-table-title">최근 주문 및 결제 내역</div>
-      <input type="text" class="table-search" id="table-search" placeholder="검색어 입력..." onkeyup="filterTable()">
+      <input type="text" class="table-search" id="table-search" placeholder="구매자명, 상품명, 수단 검색..." onkeyup="filterTable()">
     </div>
     <div class="table-wrapper">
       <table id="data-table">
         <thead id="table-head">
           <tr>
-            <th>ID</th>
+            <th>주문 ID</th>
             <th>상품명</th>
-            <th>금액</th>
-            <th>통화</th>
-            <th>상태</th>
-            <th>생성일시</th>
+            <th>결제 수단</th>
+            <th>구매자 정보</th>
+            <th>결제 금액</th>
+            <th>승인 상태</th>
+            <th>일시</th>
+            <th>작업</th>
           </tr>
         </thead>
         <tbody id="table-body">
-          <tr><td colspan="6" style="text-align: center; color: var(--text-sub); padding: 40px;">데이터를 불러오는 중입니다...</td></tr>
+          <tr><td colspan="8" style="text-align: center; color: var(--text-sub); padding: 40px;">데이터를 불러오는 중입니다...</td></tr>
         </tbody>
       </table>
     </div>
@@ -239,7 +248,6 @@ export const adminHtml = `<!DOCTYPE html>
 
 <script>
   let adminPassword = localStorage.getItem('turso_admin_pass') || '';
-  // 같은 호스트(payment.ai-ing.org) API — 공개 마케팅 도메인과 분리
   const backendBaseUrl = '';
   let currentTab = 'dashboard';
   let currentPage = 1;
@@ -256,17 +264,16 @@ export const adminHtml = `<!DOCTYPE html>
 
   function login() {
     const input = document.getElementById('admin-pass-input').value.trim();
-    if (!input) return alert('암호를 입력해 주세요.');
+    if (!input) return alert('암호를 입력하세요.');
     adminPassword = input;
     localStorage.setItem('turso_admin_pass', input);
-    document.getElementById('auth-modal').style.display = 'none';
-    fetchDashboard();
+    checkAuth();
   }
 
   function logout() {
     localStorage.removeItem('turso_admin_pass');
     adminPassword = '';
-    document.getElementById('auth-modal').style.display = 'flex';
+    location.reload();
   }
 
   async function fetchDashboard() {
@@ -283,7 +290,7 @@ export const adminHtml = `<!DOCTYPE html>
       if (data.ok) {
         document.getElementById('kpi-orders').innerText = data.totals.orders;
         document.getElementById('kpi-attempts').innerText = data.totals.paymentAttempts;
-        document.getElementById('kpi-mode').innerText = data.mode || 'Active';
+        document.getElementById('kpi-mode').innerText = data.mode || 'Live';
         
         if (currentTab === 'dashboard') {
           renderDashboardTable(data.orders);
@@ -309,25 +316,63 @@ export const adminHtml = `<!DOCTYPE html>
     }
   }
 
+  function parseCustomer(note) {
+    if (!note) return { name: '구매자', email: '-', phone: '-' };
+    try {
+      if (typeof note === 'string' && note.startsWith('{')) {
+        const parsed = JSON.parse(note);
+        if (parsed.customer) {
+          return {
+            name: parsed.customer.name || parsed.customer.fullName || '구매자',
+            email: parsed.customer.email || '-',
+            phone: parsed.customer.phone || parsed.customer.phoneNumber || '-'
+          };
+        }
+      }
+    } catch (e) {}
+    return { name: typeof note === 'string' ? note : '구매자', email: '-', phone: '-' };
+  }
+
+  function getMethodBadge(order) {
+    const p = (order.provider || '').toLowerCase();
+    const note = (order.note || '').toLowerCase();
+    const itemName = (order.itemName || '').toLowerCase();
+
+    if (p === 'kakaopay' || note.includes('kakaopay')) {
+      return '<span class="badge badge-kakao">🟡 카카오페이</span>';
+    }
+    if (p === 'polar' || note.includes('polar')) {
+      return '<span class="badge badge-polar">🌐 Polar (해외/ApplePay)</span>';
+    }
+    if (p === 'paypal' || note.includes('paypal')) {
+      return '<span class="badge badge-paypal">🅿️ PayPal</span>';
+    }
+    if (p === 'card' || p === 'inicis' || note.includes('card') || p === 'portone') {
+      return '<span class="badge badge-card">🟣 신용카드 (국내)</span>';
+    }
+    return '<span class="badge badge-card">💳 신용카드</span>';
+  }
+
   function renderDashboardTable(orders) {
-    document.getElementById('current-table-title').innerText = '최근 주문 및 결제 내역';
+    document.getElementById('current-table-title').innerText = '최근 주문 및 결제 모니터링';
     const tbody = document.getElementById('table-body');
     const thead = document.getElementById('table-head');
     
     thead.innerHTML = \`
       <tr>
-        <th>Order ID</th>
+        <th>주문 ID</th>
         <th>상품명</th>
-        <th>금액</th>
-        <th>통화</th>
-        <th>상태</th>
-        <th>생성일시</th>
-        <th>작업 (Actions)</th>
+        <th>결제 수단</th>
+        <th>구매자 (이용자)</th>
+        <th>결제 금액</th>
+        <th>승인 상태</th>
+        <th>일시</th>
+        <th>관리</th>
       </tr>
     \`;
 
     if (!orders || orders.length === 0) {
-      tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding:30px;">기록된 주문이 없습니다.</td></tr>\`;
+      tbody.innerHTML = \`<tr><td colspan="8" style="text-align:center; padding:30px;">기록된 주문이 없습니다.</td></tr>\`;
       return;
     }
 
@@ -335,15 +380,27 @@ export const adminHtml = `<!DOCTYPE html>
       const canRefund = (o.status === 'PAID');
       const actionHtml = canRefund 
         ? \`<button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="triggerRefund('\${o.activePaymentAttemptId || ''}', '\${o.id}')">💸 환불</button>\`
-        : \`<span style="font-size:11px; color:var(--text-sub);">불가</span>\`;
+        : \`<span style="font-size:11px; color:var(--text-sub);">-</span>\`;
+      
+      const cust = parseCustomer(o.note);
+      const methodBadge = getMethodBadge(o);
+      const formattedAmount = (o.currency === 'KRW') ? \`\${Number(o.amount).toLocaleString()}원\` : \`\$\${(Number(o.amount)/100).toFixed(2)} \${o.currency}\`;
+
       return \`
         <tr>
-          <td style="font-family:monospace; color:var(--accent);">\${o.id}</td>
-          <td>\${o.itemName || '기본 주문'}</td>
-          <td style="font-weight:700;">\${o.amount}</td>
-          <td>\${o.currency}</td>
+          <td style="font-family:monospace; color:var(--accent); font-size:12px;">\${o.id}</td>
+          <td style="font-weight:600;">\${o.itemName || '기본 주문'}</td>
+          <td>\${methodBadge}</td>
+          <td>
+            <div class="customer-box">
+              <span class="customer-name">👤 \${cust.name}</span>
+              <span class="customer-detail">📞 \${cust.phone}</span>
+              <span class="customer-detail">📧 \${cust.email}</span>
+            </div>
+          </td>
+          <td style="font-weight:700; color:#fff; font-size:14px;">\${formattedAmount}</td>
           <td><span class="badge \${getStatusBadge(o.status)}">\${o.status}</span></td>
-          <td style="color:var(--text-sub);">\${new Date(o.createdAt).toLocaleString()}</td>
+          <td style="color:var(--text-sub); font-size:12px;">\${new Date(o.createdAt).toLocaleString()}</td>
           <td>\${actionHtml}</td>
         </tr>
       \`;
@@ -355,7 +412,7 @@ export const adminHtml = `<!DOCTYPE html>
     const thead = document.getElementById('table-head');
     
     if (!rows || rows.length === 0) {
-      tbody.innerHTML = \`<tr><td colspan="7" style="text-align:center; padding:30px;">데이터가 없습니다.</td></tr>\`;
+      tbody.innerHTML = \`<tr><td colspan="8" style="text-align:center; padding:30px;">데이터가 없습니다.</td></tr>\`;
       return;
     }
 
@@ -363,14 +420,27 @@ export const adminHtml = `<!DOCTYPE html>
     const isPaymentAttempt = (currentTab === 'PaymentAttempt');
     const hasActions = isOrder || isPaymentAttempt;
 
-    const keys = Object.keys(rows[0]).slice(0, 6);
-    thead.innerHTML = \`<tr>\${keys.map(k => \`<th>\${k}</th>\`).join('')}\${hasActions ? '<th>작업 (Actions)</th>' : ''}</tr>\`;
+    const keys = Object.keys(rows[0]).slice(0, 7);
+    thead.innerHTML = \`<tr>\${keys.map(k => \`<th>\${k}</th>\`).join('')}\${hasActions ? '<th>작업</th>' : ''}</tr>\`;
 
     tbody.innerHTML = rows.map(r => {
       const cellsHtml = keys.map(k => {
         let val = r[k];
-        if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
         if (k === 'status') return \`<td><span class="badge \${getStatusBadge(val)}">\${val}</span></td>\`;
+        if (k === 'provider') {
+          if (val === 'kakaopay') return '<td><span class="badge badge-kakao">🟡 카카오페이</span></td>';
+          if (val === 'polar') return '<td><span class="badge badge-polar">🌐 Polar</span></td>';
+          if (val === 'paypal') return '<td><span class="badge badge-paypal">🅿️ PayPal</span></td>';
+          return '<td><span class="badge badge-card">🟣 신용카드</span></td>';
+        }
+        if (k === 'amount') {
+          return \`<td style="font-weight:700; color:#fff;">\${Number(val).toLocaleString()}</td>\`;
+        }
+        if (k === 'note' && typeof val === 'string' && val.startsWith('{')) {
+          const c = parseCustomer(val);
+          return \`<td><div class="customer-box"><span class="customer-name">\${c.name}</span><span class="customer-detail">\${c.phone} | \${c.email}</span></div></td>\`;
+        }
+        if (typeof val === 'object' && val !== null) val = JSON.stringify(val);
         return \`<td>\${val ?? '-'}</td>\`;
       }).join('');
 
@@ -380,12 +450,12 @@ export const adminHtml = `<!DOCTYPE html>
           const canRefund = (r.status === 'PAID');
           actionHtml = canRefund
             ? \`<td><button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="triggerRefund('\${r.active_payment_attempt_id || ''}', '\${r.id}')">💸 환불</button></td>\`
-            : \`<td><span style="font-size:11px; color:var(--text-sub);">불가</span></td>\`;
+            : \`<td><span style="font-size:11px; color:var(--text-sub);">-</span></td>\`;
         } else if (isPaymentAttempt) {
           const canRefund = (r.status === 'CAPTURED' || r.status === 'APPROVED');
           actionHtml = canRefund
             ? \`<td><button class="btn btn-danger" style="padding:4px 8px; font-size:11px;" onclick="triggerRefund('\${r.id}', '\${r.order_id}')">💸 환불</button></td>\`
-            : \`<td><span style="font-size:11px; color:var(--text-sub);">불가</span></td>\`;
+            : \`<td><span style="font-size:11px; color:var(--text-sub);">-</span></td>\`;
         }
       }
 
@@ -410,7 +480,7 @@ export const adminHtml = `<!DOCTYPE html>
     if (tabName === 'dashboard') {
       fetchDashboard();
     } else {
-      document.getElementById('current-table-title').innerText = \`\${tabName} 테이블 데이터\`;
+      document.getElementById('current-table-title').innerText = \`\${tabName} 테이블 대장\`;
       fetchTableData(tabName, 1);
     }
   }
@@ -429,7 +499,7 @@ export const adminHtml = `<!DOCTYPE html>
       alert('환불 처리를 위한 결제 시도 ID(Attempt ID)가 존재하지 않습니다.');
       return;
     }
-    if (!confirm(\`정말로 이 주문(\${orderId})의 결제를 환불(취소)하시겠습니까?\\n이 작업은 되돌릴 수 없으며 PG사/PayPal API로 환불 요청이 즉시 전송됩니다.\`)) {
+    if (!confirm(\`정말로 이 주문(\${orderId})의 결제를 환불(취소)하시겠습니까?\\nPG사로 환불 요청이 즉시 전송됩니다.\`)) {
       return;
     }
     
