@@ -67,10 +67,20 @@ const AI_ING_PRODUCT_CATALOG: Record<string, { amount: number; currency: string;
   test1000: { amount: 1000, currency: "KRW", itemName: "[테스트] 1,000원 결제 승인 테스트" },
   test100: { amount: 1000, currency: "KRW", itemName: "[테스트] 1,000원 결제 승인 테스트" },
   pdf: { amount: 10000, currency: "KRW", itemName: "온라인 PDF 교재" },
+  consult30k: {
+    amount: 30000,
+    currency: "KRW",
+    itemName: "AX 업무 진단 & 온라인 1:1 상담 (30분)"
+  },
   consult: {
     amount: 50000,
     currency: "KRW",
     itemName: "AX 맞춤형 컨설팅 & 1:1 멘토링 1시간 서비스"
+  },
+  consult99k: {
+    amount: 99000,
+    currency: "KRW",
+    itemName: "AX 맞춤형 집중 컨설팅 & 실습 (2시간 완성 코스)"
   },
   consult100k: {
     amount: 100000,
