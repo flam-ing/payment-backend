@@ -1,5 +1,13 @@
 # 💳 payment-backend (국내 PG망 및 글로벌 PayPal 하이브리드 결제 코어)
 
+운영 API: [payment-backend-tan.vercel.app](https://payment-backend-tan.vercel.app)
+
+웹 랜딩 페이지 없이 API 경로로 응답합니다. 상태 확인은 허용된 Origin을 포함해 요청합니다.
+
+```sh
+curl -H "Origin: https://ai-ing.org" https://payment-backend-tan.vercel.app/api/v1/health
+```
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 [![Hono](https://img.shields.io/badge/Hono-E36002?style=flat&logo=hono&logoColor=white)](https://hono.dev/)
 [![PortOne](https://img.shields.io/badge/PortOne-000000?style=flat&logo=target&logoColor=white)](https://portone.io/)
@@ -117,6 +125,8 @@ sequenceDiagram
 ---
 
 ## ⚙️ 환경 변수 및 설정 (`.env`)
+
+아래 도메인과 자격증명은 설정 예시이며, 현재 운영 API 주소는 위 링크를 참고하세요.
 
 ```env
 FRONTEND_BASE_URL=https://pay.ai-ing.org
